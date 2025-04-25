@@ -71,16 +71,42 @@ def add_book(book: BookCreate):
         cursor.close()
         conn.close()
 
-@app.get('/find_book/name/{item}')
-def find_book_name(name: str):
+@app.get('/find_book/')
+def find_book(title: str = None, author: str = None, year: int = None):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-    sql = "SELECT * FROM books4 WHERE 1=1"
-    params = []
-    if name:
-        sql += "AND (title ILIKE %s)"
-        params.extend([f"%{name},"])
+    try:
+        # Базовый запрос
+        sql = "SELECT * FROM books4 WHERE 1=1"
+        params = []
+
+        # Добавляем условия для фильтрации
+        if title:
+            sql += " AND title ILIKE %s"
+            params.append(f"%{title}%")
+        if author:
+            sql += " AND author ILIKE %s"
+            params.append(f"%{author}%")
+        if year:
+            sql += " AND year = %s"
+            params.append(year)
+
+        # Выполняем запрос
+        cursor.execute(sql, params)
+        books = cursor.fetchall()
+
+        if not books:
+            raise HTTPException(status_code=404, detail="No books found")
+
+        return books
+
+    except Exception as e:
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.get('/get_books/')
