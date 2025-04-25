@@ -2,10 +2,24 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import json
+from starlette.middleware.cors import CORSMiddleware
 
 DATABASE_URL = "postgresql://postgres:postgres@localhost/library_db"
 
 app = FastAPI()
+origins = [
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class BookCreate(BaseModel):
     title: str
@@ -20,10 +34,11 @@ def create_table():
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS books (
+            CREATE TABLE IF NOT EXISTS books4 (
                 id SERIAL PRIMARY KEY,
-                title VARHCAR(255) NOT NULL,
-                author INTEGER NOT NULL
+                title VARCHAR(255) NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                year INTEGER NOT NULL
             )
         """)
         conn.commit()
@@ -34,19 +49,67 @@ def create_table():
         cursor.close()
         conn.close()
 
+create_table()
+
 @app.post('/books/')
 def add_book(book: BookCreate):
     conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
-        cursor.execute("INSERT INTO books (title, author, year) VALUES (book.title, book.author, book.year) RETURNING od")
+        cursor.execute(
+            "INSERT INTO books4 (title, author, year) VALUES (%s, %s, %s) RETURNING id",
+            (book.title, book.author, book.year)
+        )
         book_id = cursor.fetchone()[0]
         conn.commit()
         print("Книга добавлена")
         return{"message": "Success", "book_id: ": book_id}
     except Exception as e:
         print(f"Error: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.get('/find_book/name/{item}')
+def find_book_name(name: str):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    sql = "SELECT * FROM books4 WHERE 1=1"
+    params = []
+    if name:
+        sql += "AND (title ILIKE %s)"
+        params.extend([f"%{name},"])
+
+
+@app.get('/get_books/')
+def get_books():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        cursor.execute("SELECT * FROM books4")
+        books = cursor.fetchall()
+        return books
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.delete('/delete_book/{id}')
+def delete_book(id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        cursor.execute(
+            "DELETE FROM books4 WHERE id = %s",
+            (id,)
+        )
+        conn.commit()
+    except Exception as error:
+        print(f"Error: {error}")
     finally:
         cursor.close()
         conn.close()
