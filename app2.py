@@ -71,38 +71,25 @@ def add_book(book: BookCreate):
         cursor.close()
         conn.close()
 
-@app.get('/find_book/')
-def find_book(title: str = None, author: str = None, year: int = None):
+@app.get('/find_book/name/{name}/')
+def find_book_name(name: str = None):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        # Базовый запрос
-        sql = "SELECT * FROM books4 WHERE 1=1"
-        params = []
-
-        # Добавляем условия для фильтрации
-        if title:
-            sql += " AND title ILIKE %s"
-            params.append(f"%{title}%")
-        if author:
-            sql += " AND author ILIKE %s"
-            params.append(f"%{author}%")
-        if year:
-            sql += " AND year = %s"
-            params.append(year)
-
-        # Выполняем запрос
-        cursor.execute(sql, params)
+        if name != "":
+            sql = "SELECT * FROM books4 WHERE title ~ %s"
+            cursor.execute(sql, (name,))
+        else:
+            sql = "SELECT * FROM books4" #Заметка: подобные конструкции любят только разработчики всяких маньячих игр про школьниц, нужно сделать по-умнее
+            cursor.execute(sql)
         books = cursor.fetchall()
-
         if not books:
             raise HTTPException(status_code=404, detail="No books found")
-
+        print("Книги найдены")
         return books
-
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"ErrorK {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
     finally:
         cursor.close()
